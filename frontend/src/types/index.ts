@@ -29,6 +29,10 @@ export interface Configuration {
   config_type: ConfigType
   config_data: Record<string, any>
   is_template: boolean
+  extraction_errors?: {
+    errors: string[]
+    failed_types: string[]
+  } | null
   created_at: string
   updated_at: string
 }

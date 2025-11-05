@@ -42,6 +42,7 @@ class Configuration(Base):
     config_type = Column(SQLEnum(ConfigType), nullable=False, index=True)
     config_data = Column(JSON, nullable=False)
     is_template = Column(Boolean, default=False, index=True)
+    extraction_errors = Column(JSON, nullable=True)  # Store any extraction errors
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

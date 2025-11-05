@@ -21,7 +21,7 @@ import {
   Select,
   MenuItem,
 } from '@mui/material'
-import { ArrowBack, Security as SecurityIcon, CompareArrows } from '@mui/icons-material'
+import { ArrowBack, Security as SecurityIcon, CompareArrows, CheckCircle, Error as ErrorIcon } from '@mui/icons-material'
 import { configurationsApi, securityApi, comparisonsApi } from '@/services/api'
 
 const ConfigurationDetail = () => {
@@ -124,6 +124,61 @@ const ConfigurationDetail = () => {
         <Typography variant="body1" color="textSecondary" sx={{ mb: 2 }}>
           {config.description || 'No description'}
         </Typography>
+        
+        {/* Show extraction errors if any */}
+        {config.extraction_errors && config.extraction_errors.errors && config.extraction_errors.errors.length > 0 && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Extraction completed with {config.extraction_errors.errors.length} error(s):
+            </Typography>
+            <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
+              {config.extraction_errors.errors.map((error, idx) => (
+                <Typography component="li" variant="body2" key={idx}>
+                  {error}
+                </Typography>
+              ))}
+            </Box>
+          </Alert>
+        )}
+        
+        {/* Extraction Summary - Show what was extracted */}
+        {config.config_data && typeof config.config_data === 'object' && (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              Extraction Summary:
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              {Object.keys(config.config_data).map((key) => {
+                const data = config.config_data[key]
+                const itemCount = Array.isArray(data) ? data.length : (typeof data === 'object' ? Object.keys(data).length : 1)
+                const isEmpty = itemCount === 0 || (typeof data === 'string' && data.trim() === '')
+                
+                return (
+                  <Chip
+                    key={key}
+                    icon={isEmpty ? <ErrorIcon /> : <CheckCircle />}
+                    label={`${key}: ${itemCount} item${itemCount !== 1 ? 's' : ''}`}
+                    color={isEmpty ? 'error' : 'success'}
+                    size="small"
+                    variant="outlined"
+                  />
+                )
+              })}
+              {/* Show failed types that weren't extracted at all */}
+              {config.extraction_errors?.failed_types?.map((type) => (
+                <Chip
+                  key={type}
+                  icon={<ErrorIcon />}
+                  label={`${type}: failed`}
+                  color="error"
+                  size="small"
+                  variant="filled"
+                />
+              ))}
+            </Box>
+          </Box>
+        )}
+        
         <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
           <Chip label={config.config_type} />
           {config.is_template && <Chip label="Template" color="primary" />}

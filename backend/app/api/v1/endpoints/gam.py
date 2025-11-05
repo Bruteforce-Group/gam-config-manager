@@ -21,10 +21,13 @@ async def extract_gam_config(
     # Extract configurations
     result = await gam_service.extract_all_configs(request.config_types)
     
-    if not result["success"]:
+    errors = result.get("errors", [])
+    
+    if not result["success"] and not result["data"]:
+        # Total failure - no data extracted at all
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to extract configurations: {result.get('errors')}"
+            detail=f"Failed to extract configurations: {errors}"
         )
     
     # Count total items
@@ -32,6 +35,9 @@ async def extract_gam_config(
         len(data) if isinstance(data, list) else 1
         for data in result["data"].values()
     )
+    
+    # Determine which types failed
+    failed_types = [t for t in request.config_types if t.value not in result["data"]]
     
     # Save to database
     config_name = request.template_name if request.save_as_template else f"GAM Extract {', '.join(result['data'].keys())}"
@@ -41,7 +47,8 @@ async def extract_gam_config(
         description=f"Extracted from GAM - Types: {', '.join([t.value for t in request.config_types])}",
         config_type=request.config_types[0] if len(request.config_types) == 1 else ConfigType.OTHER,
         config_data=result["data"],
-        is_template=request.save_as_template
+        is_template=request.save_as_template,
+        extraction_errors={"errors": errors, "failed_types": [t.value for t in failed_types]} if errors else None
     )
     
     db.add(db_config)
@@ -73,10 +80,12 @@ async def extract_gam_config(
     
     return GAMExtractResponse(
         success=True,
-        message="Configuration extracted successfully",
+        message="Configuration extracted successfully" if not errors else f"Partially extracted ({len(errors)} errors)",
         configuration_id=db_config.id,
         extracted_types=request.config_types,
-        total_items=total_items
+        total_items=total_items,
+        errors=errors if errors else None,
+        failed_types=failed_types if failed_types else None
     )
 
 

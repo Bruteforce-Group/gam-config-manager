@@ -57,6 +57,15 @@ export interface Difference {
   severity: 'low' | 'medium' | 'high'
 }
 
+export interface RemediationAction {
+  action_id: string
+  label: string
+  description: string
+  gam_command: string[]
+  requires_confirmation: boolean
+  parameters?: Record<string, any>
+}
+
 export interface SecurityAnalysis {
   id: number
   configuration_id: number
@@ -67,6 +76,7 @@ export interface SecurityAnalysis {
   recommendation: string
   affected_settings?: Record<string, any>
   remediation_steps?: string[]
+  remediation_actions?: RemediationAction[]
   created_at: string
 }
 

@@ -69,6 +69,7 @@ class SecurityAnalysisResponse(BaseModel):
     recommendation: str
     affected_settings: Optional[Dict[str, Any]]
     remediation_steps: Optional[List[str]]
+    remediation_actions: Optional[List[Dict[str, Any]]] = None
     created_at: datetime
     
     class Config:

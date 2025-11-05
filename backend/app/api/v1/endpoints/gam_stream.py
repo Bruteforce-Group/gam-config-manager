@@ -111,7 +111,8 @@ async def extraction_progress_generator(
                 description=finding["description"],
                 recommendation=finding["recommendation"],
                 affected_settings=finding.get("affected_settings"),
-                remediation_steps=finding.get("remediation_steps")
+                remediation_steps=finding.get("remediation_steps"),
+                remediation_actions=finding.get("remediation_actions")
             )
             db.add(db_finding)
             findings_count += 1

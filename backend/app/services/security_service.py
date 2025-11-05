@@ -31,15 +31,26 @@ class TwoFactorAuthRule(SecurityRule):
             for user in users_data:
                 if isinstance(user, dict):
                     if not user.get("isEnforcedIn2Sv", False):
+                        user_email = user.get('primaryEmail', 'unknown')
                         findings.append({
                             "title": "Two-Factor Authentication Not Enforced",
-                            "description": f"User {user.get('primaryEmail', 'unknown')} does not have 2FA enforced",
+                            "description": f"User {user_email} does not have 2FA enforced",
                             "recommendation": "Enable 2FA enforcement for all users to improve account security",
-                            "affected_settings": {"user": user.get("primaryEmail")},
+                            "affected_settings": {"user": user_email},
                             "remediation_steps": [
                                 "Go to Admin Console > Security > 2-Step Verification",
                                 "Select 'Enforce 2-Step Verification'",
                                 "Set appropriate enforcement date"
+                            ],
+                            "remediation_actions": [
+                                {
+                                    "action_id": "enforce_2fa",
+                                    "label": "Enforce 2FA for this user",
+                                    "description": f"Run GAM command to enforce 2FA for {user_email}",
+                                    "gam_command": ["update", "user", user_email, "enforcein2sv", "true"],
+                                    "requires_confirmation": True,
+                                    "parameters": {"user_email": user_email}
+                                }
                             ]
                         })
         
@@ -259,6 +270,16 @@ class OAuthTokenSecurityRule(SecurityRule):
                         "Check if app is from trusted vendor",
                         "Revoke if not needed: Go to Admin Console > Security > API controls",
                         "Consider using approved apps list"
+                    ],
+                    "remediation_actions": [
+                        {
+                            "action_id": "revoke_oauth_token",
+                            "label": "Revoke Access for this App",
+                            "description": f"Revoke OAuth access for '{display_text}' from user {user_key}",
+                            "gam_command": ["user", user_key, "revoke", "token", client_id],
+                            "requires_confirmation": True,
+                            "parameters": {"user": user_key, "client_id": client_id, "app_name": display_text}
+                        }
                     ]
                 })
         

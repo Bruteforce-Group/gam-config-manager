@@ -104,6 +104,7 @@ class SecurityAnalysis(Base):
     recommendation = Column(Text, nullable=False)
     affected_settings = Column(JSON)
     remediation_steps = Column(JSON)
+    remediation_actions = Column(JSON)  # Automated remediation actions
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships

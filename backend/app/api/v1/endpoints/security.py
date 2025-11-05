@@ -51,7 +51,8 @@ async def analyze_configuration(
             description=finding["description"],
             recommendation=finding["recommendation"],
             affected_settings=finding.get("affected_settings"),
-            remediation_steps=finding.get("remediation_steps")
+            remediation_steps=finding.get("remediation_steps"),
+            remediation_actions=finding.get("remediation_actions")
         )
         db.add(db_finding)
         db_findings.append(db_finding)

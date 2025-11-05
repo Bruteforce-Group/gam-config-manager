@@ -85,5 +85,21 @@ export const gamApi = {
     api.get<{ status: string; message: string; version?: string }>('/gam/test-connection'),
 }
 
+// Remediation
+export const remediationApi = {
+  execute: (data: { finding_id: number; action_id: string; parameters?: Record<string, any>; auto_rescan?: boolean }) =>
+    api.post<{
+      success: boolean
+      message: string
+      finding_id: number
+      action_executed: string
+      gam_output?: string
+      new_configuration_id?: number
+      security_score_before?: number
+      security_score_after?: number
+      finding_resolved: boolean
+    }>('/remediation/execute', data),
+}
+
 export default api
 

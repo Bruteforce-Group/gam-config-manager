@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.base import get_db
-from app.db.models import Configuration, ConfigType
+from app.db.models import Configuration, ConfigType, SecurityAnalysis
 from app.services.gam_service import GAMService
+from app.services.security_service import SecurityService
 
 router = APIRouter()
 
@@ -74,7 +75,7 @@ async def extraction_progress_generator(
             return
         
         # Save to database
-        yield f"data: {json.dumps({'status': 'saving', 'message': 'Saving to database...', 'progress': 95})}\n\n"
+        yield f"data: {json.dumps({'status': 'saving', 'message': 'Saving to database...', 'progress': 90})}\n\n"
         
         config_name = template_name if save_as_template else f"GAM Extract {', '.join(results.keys())}"
         
@@ -90,13 +91,47 @@ async def extraction_progress_generator(
         await db.commit()
         await db.refresh(db_config)
         
-        # Send completion
+        # Automatically run security analysis
+        yield f"data: {json.dumps({'status': 'analyzing', 'message': 'Running security analysis...', 'progress': 95})}\n\n"
+        
+        security_service = SecurityService()
+        findings = security_service.analyze_configuration(
+            db_config.config_data,
+            db_config.config_type
+        )
+        
+        # Save security findings
+        findings_count = 0
+        for finding in findings:
+            db_finding = SecurityAnalysis(
+                configuration_id=db_config.id,
+                severity=finding["severity"],
+                category=finding.get("category"),
+                title=finding["title"],
+                description=finding["description"],
+                recommendation=finding["recommendation"],
+                affected_settings=finding.get("affected_settings"),
+                remediation_steps=finding.get("remediation_steps")
+            )
+            db.add(db_finding)
+            findings_count += 1
+        
+        await db.commit()
+        
+        # Calculate security score
+        security_score = security_service.get_security_score(findings)
+        
+        # Send completion with security score
         total_items = sum(
             len(data) if isinstance(data, list) else 1
             for data in results.values()
         )
         
-        yield f"data: {json.dumps({'status': 'complete', 'message': f'✓ Extraction complete! Extracted {total_items} total items.', 'configuration_id': db_config.id, 'progress': 100})}\n\n"
+        completion_msg = f'✓ Extraction complete! Extracted {total_items} items. Security Score: {security_score}/100'
+        if findings_count > 0:
+            completion_msg += f' ({findings_count} findings)'
+        
+        yield f"data: {json.dumps({'status': 'complete', 'message': completion_msg, 'configuration_id': db_config.id, 'progress': 100, 'security_score': security_score, 'findings_count': findings_count})}\n\n"
     
     except Exception as e:
         yield f"data: {json.dumps({'status': 'error', 'message': f'Fatal error: {str(e)}'})}\n\n"

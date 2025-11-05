@@ -2,9 +2,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.base import get_db
-from app.db.models import Configuration, ConfigType
+from app.db.models import Configuration, ConfigType, SecurityAnalysis
 from app.schemas.config import GAMExtractRequest, GAMExtractResponse
 from app.services.gam_service import GAMService
+from app.services.security_service import SecurityService
 
 router = APIRouter()
 
@@ -46,6 +47,29 @@ async def extract_gam_config(
     db.add(db_config)
     await db.commit()
     await db.refresh(db_config)
+    
+    # Automatically run security analysis on the extracted configuration
+    security_service = SecurityService()
+    findings = security_service.analyze_configuration(
+        db_config.config_data,
+        db_config.config_type
+    )
+    
+    # Save security findings
+    for finding in findings:
+        db_finding = SecurityAnalysis(
+            configuration_id=db_config.id,
+            severity=finding["severity"],
+            category=finding.get("category"),
+            title=finding["title"],
+            description=finding["description"],
+            recommendation=finding["recommendation"],
+            affected_settings=finding.get("affected_settings"),
+            remediation_steps=finding.get("remediation_steps")
+        )
+        db.add(db_finding)
+    
+    await db.commit()
     
     return GAMExtractResponse(
         success=True,

@@ -83,32 +83,73 @@ class GAMService:
     async def extract_org_units(self) -> Dict[str, Any]:
         """Extract organizational units"""
         result = await self._run_gam_command([
-            "print", "orgs",
-            "formatjson"
+            "print", "orgs"
         ])
+        
+        # GAM returns CSV for orgs, not JSON
+        if result["success"] and isinstance(result["data"], str):
+            # Parse CSV to list of dicts
+            import csv
+            import io
+            
+            csv_data = result["data"]
+            reader = csv.DictReader(io.StringIO(csv_data))
+            orgs = list(reader)
+            
+            return {
+                "success": True,
+                "error": None,
+                "data": orgs
+            }
+        
         return result
     
     async def extract_domain_settings(self) -> Dict[str, Any]:
         """Extract domain settings"""
-        if not self.domain:
+        result = await self._run_gam_command([
+            "info", "domain"
+        ])
+        
+        # GAM returns text format for domain info
+        if result["success"] and isinstance(result["data"], str):
+            # Parse the text output into a dictionary
+            lines = result["data"].strip().split('\n')
+            domain_info = {}
+            
+            for line in lines:
+                if ': ' in line:
+                    key, value = line.split(': ', 1)
+                    domain_info[key.strip()] = value.strip()
+            
             return {
-                "success": False,
-                "error": "Domain not configured",
-                "data": None
+                "success": True,
+                "error": None,
+                "data": domain_info
             }
         
-        result = await self._run_gam_command([
-            "info", "domain",
-            "formatjson"
-        ])
         return result
     
     async def extract_calendar_settings(self) -> Dict[str, Any]:
         """Extract calendar resource settings"""
         result = await self._run_gam_command([
-            "print", "resources",
-            "formatjson"
+            "print", "resources"
         ])
+        
+        # GAM returns CSV for resources
+        if result["success"] and isinstance(result["data"], str):
+            import csv
+            import io
+            
+            csv_data = result["data"]
+            reader = csv.DictReader(io.StringIO(csv_data))
+            resources = list(reader)
+            
+            return {
+                "success": True,
+                "error": None,
+                "data": resources
+            }
+        
         return result
     
     async def extract_gmail_settings(self, user_email: str) -> Dict[str, Any]:

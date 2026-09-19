@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Box,
   Grid,
@@ -21,18 +21,36 @@ import {
   Alert,
   CircularProgress,
   Chip,
+  LinearProgress,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material'
 import {
   CloudDownload,
   CompareArrows,
   Security,
   Description,
+  CheckCircle,
+  Pending,
+  Error as ErrorIcon,
 } from '@mui/icons-material'
 import { configurationsApi, comparisonsApi, templatesApi, gamApi } from '@/services/api'
 import { ConfigType } from '@/types'
 
+interface ProgressUpdate {
+  status: string
+  message: string
+  current_type?: string
+  progress?: number
+  configuration_id?: number
+  errors?: string[]
+}
+
 const Dashboard = () => {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [extractDialogOpen, setExtractDialogOpen] = useState(false)
   const [selectedTypes, setSelectedTypes] = useState<ConfigType[]>([
     ConfigType.USER,
@@ -40,6 +58,12 @@ const Dashboard = () => {
   ])
   const [saveAsTemplate, setSaveAsTemplate] = useState(false)
   const [templateName, setTemplateName] = useState('')
+  const [isExtracting, setIsExtracting] = useState(false)
+  const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([])
+  const [currentProgress, setCurrentProgress] = useState(0)
+  const eventSourceRef = useRef<EventSource | null>(null)
+  const logContainerRef = useRef<HTMLDivElement>(null)
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
 
   // Fetch stats
   const { data: configs } = useQuery({
@@ -57,23 +81,85 @@ const Dashboard = () => {
     queryFn: () => templatesApi.list().then((res) => res.data),
   })
 
-  // Extract mutation
-  const extractMutation = useMutation({
-    mutationFn: gamApi.extract,
-    onSuccess: (response) => {
-      setExtractDialogOpen(false)
-      if (response.data.configuration_id) {
-        navigate(`/configurations/${response.data.configuration_id}`)
-      }
-    },
-  })
+  // Auto-scroll to bottom when new progress updates arrive
+  useEffect(() => {
+    if (shouldAutoScroll && logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
+    }
+  }, [progressUpdates, shouldAutoScroll])
+
+  // Handle scroll events to detect manual scrolling
+  const handleLogScroll = () => {
+    if (!logContainerRef.current) return
+    
+    const { scrollTop, scrollHeight, clientHeight } = logContainerRef.current
+    const isAtBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 10
+    
+    setShouldAutoScroll(isAtBottom)
+  }
 
   const handleExtract = () => {
-    extractMutation.mutate({
-      config_types: selectedTypes,
-      save_as_template: saveAsTemplate,
-      template_name: saveAsTemplate ? templateName : undefined,
+    setShouldAutoScroll(true) // Reset auto-scroll for new extraction
+    setIsExtracting(true)
+    setProgressUpdates([])
+    setCurrentProgress(0)
+    
+    // Build query params
+    const params = new URLSearchParams({
+      config_types: selectedTypes.join(','),
+      save_as_template: saveAsTemplate.toString(),
     })
+    if (saveAsTemplate && templateName) {
+      params.append('template_name', templateName)
+    }
+    
+    // Create EventSource for Server-Sent Events
+    const eventSource = new EventSource(`/api/v1/gam/extract-stream?${params}`)
+    eventSourceRef.current = eventSource
+    
+    eventSource.onmessage = (event) => {
+      const update: ProgressUpdate = JSON.parse(event.data)
+      
+      // Add to progress updates
+      setProgressUpdates(prev => [...prev, update])
+      
+      // Update progress bar
+      if (update.progress !== undefined) {
+        setCurrentProgress(update.progress)
+      }
+      
+      // Handle completion
+      if (update.status === 'complete') {
+        setIsExtracting(false)
+        eventSource.close()
+        
+        // Refresh configurations list
+        queryClient.invalidateQueries({ queryKey: ['configurations'] })
+        
+        // Navigate to new configuration after a brief delay
+        setTimeout(() => {
+          setExtractDialogOpen(false)
+          if (update.configuration_id) {
+            navigate(`/configurations/${update.configuration_id}`)
+          }
+        }, 1500)
+      }
+      
+      // Handle errors
+      if (update.status === 'error' || update.status === 'partial_error') {
+        setIsExtracting(false)
+        eventSource.close()
+      }
+    }
+    
+    eventSource.onerror = () => {
+      setIsExtracting(false)
+      setProgressUpdates(prev => [...prev, {
+        status: 'error',
+        message: 'Connection error. Please try again.'
+      }])
+      eventSource.close()
+    }
   }
 
   const handleTypeToggle = (type: ConfigType) => {
@@ -192,12 +278,75 @@ const Dashboard = () => {
       </Card>
 
       {/* Extract Dialog */}
-      <Dialog open={extractDialogOpen} onClose={() => setExtractDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={extractDialogOpen} 
+        onClose={() => !isExtracting && setExtractDialogOpen(false)} 
+        maxWidth="md" 
+        fullWidth
+      >
         <DialogTitle>Extract GAM Configuration</DialogTitle>
         <DialogContent>
-          {extractMutation.isError && (
+          {isExtracting && (
+            <Box sx={{ mb: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Typography variant="body2" color="textSecondary">
+                  Extracting configuration...
+                </Typography>
+                <Typography variant="body2" color="primary" fontWeight="bold">
+                  {currentProgress}%
+                </Typography>
+              </Box>
+              <LinearProgress variant="determinate" value={currentProgress} sx={{ mb: 2 }} />
+              
+              {progressUpdates.length > 0 && (
+                <Card 
+                  variant="outlined" 
+                  sx={{ 
+                    maxHeight: 192, // ~4 lines (48px each for dense list items)
+                    overflow: 'auto', 
+                    bgcolor: 'grey.50',
+                    '&::-webkit-scrollbar': {
+                      width: '8px',
+                    },
+                    '&::-webkit-scrollbar-thumb': {
+                      backgroundColor: 'rgba(0,0,0,0.2)',
+                      borderRadius: '4px',
+                    },
+                  }}
+                  ref={logContainerRef}
+                  onScroll={handleLogScroll}
+                >
+                  <List dense>
+                    {progressUpdates.map((update, idx) => (
+                      <ListItem key={idx}>
+                        <ListItemIcon sx={{ minWidth: 36 }}>
+                          {update.status === 'complete' || update.status === 'completed_type' ? (
+                            <CheckCircle color="success" fontSize="small" />
+                          ) : update.status.includes('error') ? (
+                            <ErrorIcon color="error" fontSize="small" />
+                          ) : (
+                            <Pending color="primary" fontSize="small" />
+                          )}
+                        </ListItemIcon>
+                        <ListItemText 
+                          primary={update.message}
+                          primaryTypographyProps={{ 
+                            variant: 'body2',
+                            fontFamily: 'monospace',
+                            fontSize: '0.85rem'
+                          }}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Card>
+              )}
+            </Box>
+          )}
+          
+          {!isExtracting && progressUpdates.some(u => u.status.includes('error')) && (
             <Alert severity="error" sx={{ mb: 2 }}>
-              Failed to extract configuration. Please check your GAM setup.
+              Extraction failed. Please check your GAM setup and try again.
             </Alert>
           )}
 
@@ -240,14 +389,16 @@ const Dashboard = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setExtractDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setExtractDialogOpen(false)} disabled={isExtracting}>
+            {isExtracting ? 'Close' : 'Cancel'}
+          </Button>
           <Button
             variant="contained"
             onClick={handleExtract}
-            disabled={selectedTypes.length === 0 || extractMutation.isPending}
-            startIcon={extractMutation.isPending && <CircularProgress size={20} />}
+            disabled={selectedTypes.length === 0 || isExtracting}
+            startIcon={isExtracting && <CircularProgress size={20} />}
           >
-            Extract
+            {isExtracting ? 'Extracting...' : 'Extract'}
           </Button>
         </DialogActions>
       </Dialog>

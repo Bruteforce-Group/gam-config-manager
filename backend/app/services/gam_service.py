@@ -83,32 +83,73 @@ class GAMService:
     async def extract_org_units(self) -> Dict[str, Any]:
         """Extract organizational units"""
         result = await self._run_gam_command([
-            "print", "orgs",
-            "formatjson"
+            "print", "orgs"
         ])
+        
+        # GAM returns CSV for orgs, not JSON
+        if result["success"] and isinstance(result["data"], str):
+            # Parse CSV to list of dicts
+            import csv
+            import io
+            
+            csv_data = result["data"]
+            reader = csv.DictReader(io.StringIO(csv_data))
+            orgs = list(reader)
+            
+            return {
+                "success": True,
+                "error": None,
+                "data": orgs
+            }
+        
         return result
     
     async def extract_domain_settings(self) -> Dict[str, Any]:
         """Extract domain settings"""
-        if not self.domain:
+        result = await self._run_gam_command([
+            "info", "domain"
+        ])
+        
+        # GAM returns text format for domain info
+        if result["success"] and isinstance(result["data"], str):
+            # Parse the text output into a dictionary
+            lines = result["data"].strip().split('\n')
+            domain_info = {}
+            
+            for line in lines:
+                if ': ' in line:
+                    key, value = line.split(': ', 1)
+                    domain_info[key.strip()] = value.strip()
+            
             return {
-                "success": False,
-                "error": "Domain not configured",
-                "data": None
+                "success": True,
+                "error": None,
+                "data": domain_info
             }
         
-        result = await self._run_gam_command([
-            "info", "domain",
-            "formatjson"
-        ])
         return result
     
     async def extract_calendar_settings(self) -> Dict[str, Any]:
         """Extract calendar resource settings"""
         result = await self._run_gam_command([
-            "print", "resources",
-            "formatjson"
+            "print", "resources"
         ])
+        
+        # GAM returns CSV for resources
+        if result["success"] and isinstance(result["data"], str):
+            import csv
+            import io
+            
+            csv_data = result["data"]
+            reader = csv.DictReader(io.StringIO(csv_data))
+            resources = list(reader)
+            
+            return {
+                "success": True,
+                "error": None,
+                "data": resources
+            }
+        
         return result
     
     async def extract_gmail_settings(self, user_email: str) -> Dict[str, Any]:
@@ -140,6 +181,98 @@ class GAMService:
             "data": results
         }
     
+    async def extract_mobile_devices(self) -> Dict[str, Any]:
+        """Extract mobile device inventory"""
+        result = await self._run_gam_command([
+            "print", "mobile"
+        ])
+        
+        # GAM returns CSV for mobile devices
+        if result["success"] and isinstance(result["data"], str):
+            import csv
+            import io
+            
+            csv_data = result["data"]
+            reader = csv.DictReader(io.StringIO(csv_data))
+            devices = list(reader)
+            
+            return {
+                "success": True,
+                "error": None,
+                "data": devices
+            }
+        
+        return result
+    
+    async def extract_oauth_tokens(self) -> Dict[str, Any]:
+        """Extract OAuth tokens for third-party app access"""
+        result = await self._run_gam_command([
+            "print", "tokens"
+        ])
+        
+        # GAM returns CSV for tokens
+        if result["success"] and isinstance(result["data"], str):
+            import csv
+            import io
+            
+            csv_data = result["data"]
+            reader = csv.DictReader(io.StringIO(csv_data))
+            tokens = list(reader)
+            
+            return {
+                "success": True,
+                "error": None,
+                "data": tokens
+            }
+        
+        return result
+    
+    async def extract_admin_roles(self) -> Dict[str, Any]:
+        """Extract admin roles and assignments"""
+        result = await self._run_gam_command([
+            "print", "adminroles"
+        ])
+        
+        # GAM returns CSV for admin roles
+        if result["success"] and isinstance(result["data"], str):
+            import csv
+            import io
+            
+            csv_data = result["data"]
+            reader = csv.DictReader(io.StringIO(csv_data))
+            roles = list(reader)
+            
+            return {
+                "success": True,
+                "error": None,
+                "data": roles
+            }
+        
+        return result
+    
+    async def extract_shared_drives(self) -> Dict[str, Any]:
+        """Extract shared/team drives"""
+        result = await self._run_gam_command([
+            "print", "teamdrives"
+        ])
+        
+        # GAM returns CSV for shared drives
+        if result["success"] and isinstance(result["data"], str):
+            import csv
+            import io
+            
+            csv_data = result["data"]
+            reader = csv.DictReader(io.StringIO(csv_data))
+            drives = list(reader)
+            
+            return {
+                "success": True,
+                "error": None,
+                "data": drives
+            }
+        
+        return result
+    
     async def extract_all_configs(
         self,
         config_types: Optional[List[ConfigType]] = None
@@ -170,6 +303,14 @@ class GAMService:
                     result = await self.extract_calendar_settings()
                 elif config_type == ConfigType.SECURITY:
                     result = await self.extract_security_settings()
+                elif config_type == ConfigType.MOBILE:
+                    result = await self.extract_mobile_devices()
+                elif config_type == ConfigType.OAUTH_TOKENS:
+                    result = await self.extract_oauth_tokens()
+                elif config_type == ConfigType.ADMIN_ROLES:
+                    result = await self.extract_admin_roles()
+                elif config_type == ConfigType.SHARED_DRIVES:
+                    result = await self.extract_shared_drives()
                 else:
                     continue
                 

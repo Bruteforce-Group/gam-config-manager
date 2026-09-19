@@ -7,6 +7,10 @@ export enum ConfigType {
   DRIVE = 'drive',
   GMAIL = 'gmail',
   SECURITY = 'security',
+  MOBILE = 'mobile',
+  OAUTH_TOKENS = 'oauth_tokens',
+  ADMIN_ROLES = 'admin_roles',
+  SHARED_DRIVES = 'shared_drives',
   OTHER = 'other',
 }
 
@@ -25,6 +29,10 @@ export interface Configuration {
   config_type: ConfigType
   config_data: Record<string, any>
   is_template: boolean
+  extraction_errors?: {
+    errors: string[]
+    failed_types: string[]
+  } | null
   created_at: string
   updated_at: string
 }
@@ -49,6 +57,15 @@ export interface Difference {
   severity: 'low' | 'medium' | 'high'
 }
 
+export interface RemediationAction {
+  action_id: string
+  label: string
+  description: string
+  gam_command: string[]
+  requires_confirmation: boolean
+  parameters?: Record<string, any>
+}
+
 export interface SecurityAnalysis {
   id: number
   configuration_id: number
@@ -59,6 +76,7 @@ export interface SecurityAnalysis {
   recommendation: string
   affected_settings?: Record<string, any>
   remediation_steps?: string[]
+  remediation_actions?: RemediationAction[]
   created_at: string
 }
 

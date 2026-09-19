@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -62,6 +62,8 @@ const Dashboard = () => {
   const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([])
   const [currentProgress, setCurrentProgress] = useState(0)
   const eventSourceRef = useRef<EventSource | null>(null)
+  const logContainerRef = useRef<HTMLDivElement>(null)
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
 
   // Fetch stats
   const { data: configs } = useQuery({
@@ -79,7 +81,25 @@ const Dashboard = () => {
     queryFn: () => templatesApi.list().then((res) => res.data),
   })
 
+  // Auto-scroll to bottom when new progress updates arrive
+  useEffect(() => {
+    if (shouldAutoScroll && logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
+    }
+  }, [progressUpdates, shouldAutoScroll])
+
+  // Handle scroll events to detect manual scrolling
+  const handleLogScroll = () => {
+    if (!logContainerRef.current) return
+    
+    const { scrollTop, scrollHeight, clientHeight } = logContainerRef.current
+    const isAtBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 10
+    
+    setShouldAutoScroll(isAtBottom)
+  }
+
   const handleExtract = () => {
+    setShouldAutoScroll(true) // Reset auto-scroll for new extraction
     setIsExtracting(true)
     setProgressUpdates([])
     setCurrentProgress(0)
@@ -279,7 +299,23 @@ const Dashboard = () => {
               <LinearProgress variant="determinate" value={currentProgress} sx={{ mb: 2 }} />
               
               {progressUpdates.length > 0 && (
-                <Card variant="outlined" sx={{ maxHeight: 200, overflow: 'auto', bgcolor: 'grey.50' }}>
+                <Card 
+                  variant="outlined" 
+                  sx={{ 
+                    maxHeight: 192, // ~4 lines (48px each for dense list items)
+                    overflow: 'auto', 
+                    bgcolor: 'grey.50',
+                    '&::-webkit-scrollbar': {
+                      width: '8px',
+                    },
+                    '&::-webkit-scrollbar-thumb': {
+                      backgroundColor: 'rgba(0,0,0,0.2)',
+                      borderRadius: '4px',
+                    },
+                  }}
+                  ref={logContainerRef}
+                  onScroll={handleLogScroll}
+                >
                   <List dense>
                     {progressUpdates.map((update, idx) => (
                       <ListItem key={idx}>

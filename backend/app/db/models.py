@@ -16,6 +16,10 @@ class ConfigType(str, enum.Enum):
     DRIVE = "drive"
     GMAIL = "gmail"
     SECURITY = "security"
+    MOBILE = "mobile"
+    OAUTH_TOKENS = "oauth_tokens"
+    ADMIN_ROLES = "admin_roles"
+    SHARED_DRIVES = "shared_drives"
     OTHER = "other"
 
 
@@ -38,6 +42,7 @@ class Configuration(Base):
     config_type = Column(SQLEnum(ConfigType), nullable=False, index=True)
     config_data = Column(JSON, nullable=False)
     is_template = Column(Boolean, default=False, index=True)
+    extraction_errors = Column(JSON, nullable=True)  # Store any extraction errors
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -99,6 +104,7 @@ class SecurityAnalysis(Base):
     recommendation = Column(Text, nullable=False)
     affected_settings = Column(JSON)
     remediation_steps = Column(JSON)
+    remediation_actions = Column(JSON)  # Automated remediation actions
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships

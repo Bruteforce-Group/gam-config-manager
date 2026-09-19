@@ -1,6 +1,6 @@
 """API v1 router"""
 from fastapi import APIRouter
-from app.api.v1.endpoints import configurations, comparisons, security, templates, gam, gam_stream
+from app.api.v1.endpoints import configurations, comparisons, security, templates, gam, gam_stream, remediation
 
 api_router = APIRouter()
 
@@ -20,6 +20,12 @@ api_router.include_router(
     security.router,
     prefix="/security",
     tags=["security"]
+)
+
+api_router.include_router(
+    remediation.router,
+    prefix="/remediation",
+    tags=["remediation"]
 )
 
 api_router.include_router(

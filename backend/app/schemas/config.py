@@ -30,6 +30,7 @@ class ConfigurationUpdate(BaseModel):
 class ConfigurationResponse(ConfigurationBase):
     """Schema for configuration response"""
     id: int
+    extraction_errors: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
     
@@ -68,6 +69,7 @@ class SecurityAnalysisResponse(BaseModel):
     recommendation: str
     affected_settings: Optional[Dict[str, Any]]
     remediation_steps: Optional[List[str]]
+    remediation_actions: Optional[List[Dict[str, Any]]] = None
     created_at: datetime
     
     class Config:
@@ -112,4 +114,6 @@ class GAMExtractResponse(BaseModel):
     configuration_id: Optional[int] = None
     extracted_types: List[ConfigType]
     total_items: int
+    errors: Optional[List[str]] = None
+    failed_types: Optional[List[ConfigType]] = None
 
